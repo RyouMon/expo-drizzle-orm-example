@@ -1,50 +1,185 @@
-# Welcome to your Expo app 👋
+# React Native 使用 ORM 的示例 (通过 Expo + Drizzle 实现)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+# 直接运行示例
+1. 克隆代码仓
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
+2. 安装依赖
+   ```
    npm install
    ```
 
-2. Start the app
-
-   ```bash
-   npx expo start
+3. 运行项目
+   ```
+   npm run ios|android
    ```
 
-In the output, you'll find options to open the app in a
+# 从头搭建项目
+## 初始化项目
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+1. 创建项目
+   ```bash
+   npx create-expo-app@latest expo-drizzle-orm
+   ```
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+2. 删除示例代码
+   ```bash
+   npm run reset-project
+   ```
 
-## Get a fresh project
+3. 安装依赖
+   ```bash
+   npx expo install expo-sqlite
 
-When you're ready, run:
+   npm i -D drizzle-kit
+   npm i drizzle-orm babel-plugin-inline-import
+   npm i expo-drizzle-studio-plugin
+   ```
 
-```bash
-npm run reset-project
+## 配置Drizzle
+
+1. 创建 `drizzle.config.ts` 配置文件
+   ```ts
+   import { defineConfig } from 'drizzle-kit';
+
+   export default defineConfig({
+      schema: './db/schema.ts',
+      out: './drizzle',
+      dialect: 'sqlite',
+      driver: 'expo', // <-- very important
+   });
+   ```
+
+2. 创建`babel`和`metro`配置文件
+   ```bash
+   npx expo customize metro.config.js
+   npx expo customize babel.config.js
+   ```
+
+3. 编辑 `babel.config.js`
+   ```js
+   module.exports = function (api) {
+   api.cache(true);
+   return {
+      presets: ['babel-preset-expo'],
+      plugins: [["inline-import", { "extensions": [".sql"] }]] // <-- add this
+   };
+   };
+   ```
+
+4. 编辑 `metro.config.js`
+   ```js
+   // Learn more https://docs.expo.io/guides/customizing-metro
+   const { getDefaultConfig } = require('expo/metro-config');
+
+   /** @type {import('expo/metro-config').MetroConfig} */
+   const config = getDefaultConfig(__dirname);
+
+   config.resolver.sourceExts.push('sql'); // <--- add this
+
+   module.exports = config;
+   ```
+
+## 编写 Schema
+
+1. 新建文件夹和文件：`db/schema.ts`
+   ```ts
+   import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+
+   export const tasks = sqliteTable('tasks', {
+   id: integer('id').primaryKey({ autoIncrement: true }),
+   name: text('name').notNull()
+   });
+
+   // Export Task to use as an interface in your app
+   export type Task = typeof tasks.$inferSelect;
+   ```
+
+2. 生成迁移文件
+   ```bash
+   npx drizzle-kit generate
+   ```
+
+## 使用Drizzle
+1. 连接数据库并进行迁移，编辑`app/_layout.tsx`:
+```tsx
+import migrations from '@/drizzle/migrations';
+import { drizzle } from 'drizzle-orm/expo-sqlite';
+import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
+import { Stack } from 'expo-router';
+import { SQLiteProvider, openDatabaseSync } from 'expo-sqlite';
+import { Suspense } from 'react';
+import { ActivityIndicator } from 'react-native';
+
+export const DATABASE_NAME = 'tasks';
+
+export default function RootLayout() {
+  const expoDb = openDatabaseSync(DATABASE_NAME);
+  const db = drizzle(expoDb);
+  const { success, error } = useMigrations(db, migrations);
+
+  console.log('success', success)
+  console.log('error', error)
+
+  return (
+    <Suspense fallback={<ActivityIndicator size="large" />}>
+      <SQLiteProvider
+        databaseName={DATABASE_NAME}
+        options={{ enableChangeListener: true }}
+        useSuspense>
+        <Stack>
+          <Stack.Screen name="index" options={{ title: 'Tasks' }} />
+        </Stack>
+      </SQLiteProvider>
+    </Suspense>
+  );
+}
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. 插入数据到数据库并实时显示，编辑`app/index.tsx`:
+```tsx
+import * as schema from '@/db/schema';
+import { drizzle, useLiveQuery } from 'drizzle-orm/expo-sqlite';
+import { useSQLiteContext } from 'expo-sqlite';
+import { Button, FlatList, Text, View } from 'react-native';
 
-## Learn more
+export const DATABASE_NAME = 'tasks';
 
-To learn more about developing your project with Expo, look at the following resources:
+export default function Index() {
+  const db = useSQLiteContext();
+  const drizzleDb = drizzle(db, { schema });
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+  const { data } = useLiveQuery(
+    drizzleDb.select().from(schema.tasks)
+  );
 
-## Join the community
+  async function insertTask() {
+    await drizzleDb.insert(schema.tasks).values({
+      name: `Task ${Math.floor(Math.random() * 1000)}`,
+    });
+    console.log('Task inserted')
+  }
 
-Join our community of developers creating universal apps.
+  return (
+    <View>
+      <Button
+        title="Insert Task"
+        onPress={insertTask}
+      />
+      <FlatList 
+        data={data}
+        renderItem={({ item }) => <Text>{JSON.stringify(item)}</Text>}
+        keyExtractor={(item) => item.id.toString()}
+      />
+    </View>
+  )
+}
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+3. 运行项目
+   ```
+   npm run ios|android
+   ```
+
+# 参考
+- https://expo.dev/blog/modern-sqlite-for-react-native-apps
+- https://orm.drizzle.team/docs/connect-expo-sqlite
