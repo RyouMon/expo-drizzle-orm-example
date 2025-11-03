@@ -4,100 +4,100 @@
 1. 克隆代码仓
 
 2. 安装依赖
-   ```
-   npm install
-   ```
+```
+npm install
+```
 
 3. 运行项目
-   ```
-   npm run ios|android
-   ```
+```
+npm run ios|android
+```
 
 # 从头搭建项目
 ## 初始化项目
 
 1. 创建项目
-   ```bash
-   npx create-expo-app@latest expo-drizzle-orm
-   ```
+```bash
+npx create-expo-app@latest expo-drizzle-orm
+```
 
 2. 删除示例代码
-   ```bash
-   npm run reset-project
-   ```
+```bash
+npm run reset-project
+```
 
 3. 安装依赖
-   ```bash
-   npx expo install expo-sqlite
+```bash
+npx expo install expo-sqlite
 
-   npm i -D drizzle-kit
-   npm i drizzle-orm babel-plugin-inline-import
-   npm i expo-drizzle-studio-plugin
-   ```
+npm i -D drizzle-kit
+npm i drizzle-orm babel-plugin-inline-import
+npm i expo-drizzle-studio-plugin
+```
 
 ## 配置Drizzle
 
 1. 创建 `drizzle.config.ts` 配置文件
-   ```ts
-   import { defineConfig } from 'drizzle-kit';
+```ts
+import { defineConfig } from 'drizzle-kit';
 
-   export default defineConfig({
-      schema: './db/schema.ts',
-      out: './drizzle',
-      dialect: 'sqlite',
-      driver: 'expo', // <-- very important
-   });
-   ```
+export default defineConfig({
+	schema: './db/schema.ts',
+	out: './drizzle',
+    dialect: 'sqlite',
+	driver: 'expo', // <--- very important
+});
+```
 
 2. 创建`babel`和`metro`配置文件
-   ```bash
-   npx expo customize metro.config.js
-   npx expo customize babel.config.js
-   ```
+```bash
+npx expo customize metro.config.js
+npx expo customize babel.config.js
+```
 
 3. 编辑 `babel.config.js`
-   ```js
-   module.exports = function (api) {
-   api.cache(true);
-   return {
-      presets: ['babel-preset-expo'],
-      plugins: [["inline-import", { "extensions": [".sql"] }]] // <-- add this
-   };
-   };
-   ```
+```js
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [["inline-import", { "extensions": [".sql"] }]] // <-- add this
+  };
+};
+```
 
 4. 编辑 `metro.config.js`
-   ```js
-   // Learn more https://docs.expo.io/guides/customizing-metro
-   const { getDefaultConfig } = require('expo/metro-config');
+```js
+// Learn more https://docs.expo.io/guides/customizing-metro
+const { getDefaultConfig } = require('expo/metro-config');
 
-   /** @type {import('expo/metro-config').MetroConfig} */
-   const config = getDefaultConfig(__dirname);
+/** @type {import('expo/metro-config').MetroConfig} */
+const config = getDefaultConfig(__dirname);
 
-   config.resolver.sourceExts.push('sql'); // <--- add this
+config.resolver.sourceExts.push('sql'); // <--- add this
 
-   module.exports = config;
-   ```
+module.exports = config;
+```
 
 ## 编写 Schema
 
 1. 新建文件夹和文件：`db/schema.ts`
-   ```ts
-   import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+```ts
+import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
-   export const tasks = sqliteTable('tasks', {
-   id: integer('id').primaryKey({ autoIncrement: true }),
-   name: text('name').notNull()
-   });
+export const tasks = sqliteTable('tasks', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull()
+});
 
-   // Export Task to use as an interface in your app
-   export type Task = typeof tasks.$inferSelect;
-   ```
+// Export Task to use as an interface in your app
+export type Task = typeof tasks.$inferSelect;
+```
 
 2. 生成迁移文件
-   ```bash
-   npx drizzle-kit generate
-   ```
+```bash
+npx drizzle-kit generate
+```
 
 ## 使用Drizzle
 1. 连接数据库并进行迁移，编辑`app/_layout.tsx`:
@@ -176,9 +176,9 @@ export default function Index() {
 ```
 
 3. 运行项目
-   ```
-   npm run ios|android
-   ```
+```
+npm run ios|android
+```
 
 # 参考
 - https://expo.dev/blog/modern-sqlite-for-react-native-apps
